@@ -19,7 +19,7 @@ public class SequentialReadTest {
     }
   }
 
-  public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration) throws IOException {
+  public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration, long endTime) throws IOException {
     List<byte[]> buffers = new ArrayList<>();
     for (long bufferSize : bufferSizes) {
       if (bufferSize > Integer.MAX_VALUE) {
@@ -27,12 +27,16 @@ public class SequentialReadTest {
       }
       buffers.add(new byte[(int) bufferSize]);
     }
+    boolean firstRound = true;
     try (RandomAccessFile localInStream = new RandomAccessFile(localPath, "r")) {
-      for (int i = 0; i < iteration; i++) {
-        for (byte[] buffer : buffers) {
-          sequentialReadSingleFile(localInStream, fusePath, fileSize, buffer);
+      while (firstRound || System.currentTimeMillis() < endTime) {
+        for (int i = 0; i < iteration; i++) {
+          for (byte[] buffer : buffers) {
+            sequentialReadSingleFile(localInStream, fusePath, fileSize, buffer);
+          }
+          System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
         }
-        System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
+        firstRound = false;
       }
     }
   }

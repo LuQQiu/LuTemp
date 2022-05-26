@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class RandomReadTest {
-  public static void test(String localPath, String fusePath, long fileSize, long bufferSize, int iteration) throws IOException {
+  public static void testSingleBuffer(String localPath, String fusePath, long fileSize, long bufferSize, int iteration) throws IOException {
     if (bufferSize > Integer.MAX_VALUE) {
       throw new IOException("Cannot handle buffer size bigger than Integer.MAX_VALUE");
     }
@@ -21,7 +21,7 @@ public class RandomReadTest {
     }
   }
 
-  public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration) throws IOException {
+  public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration, long endTime) throws IOException {
     List<byte[]> buffers = new ArrayList<>();
     for (long bufferSize : bufferSizes) {
       if (bufferSize > Integer.MAX_VALUE) {
@@ -32,11 +32,15 @@ public class RandomReadTest {
     ThreadLocalRandom localRandom = ThreadLocalRandom.current();
     try (RandomAccessFile localInStream = new RandomAccessFile(localPath, "r");
          RandomAccessFile fuseInStream = new RandomAccessFile(fusePath, "r")) {
-      for (int i = 0; i < iteration; i++) {
-        for (byte[] buffer : buffers) {
-          randomRead(localInStream, fuseInStream, buffer, localRandom, fileSize);
+      boolean firstRound = true;
+      while (firstRound || System.currentTimeMillis() < endTime) {
+        for (int i = 0; i < iteration; i++) {
+          for (byte[] buffer : buffers) {
+            randomRead(localInStream, fuseInStream, buffer, localRandom, fileSize);
+          }
+          System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
         }
-        System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
+        firstRound = false;
       }
     }
   }

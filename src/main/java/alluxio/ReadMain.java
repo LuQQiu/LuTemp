@@ -33,6 +33,7 @@ public final class ReadMain {
   private static final String FUSE_FOLDER_OPTION_NAME = "f";
   private static final String THREAD_NUMBER_OPTION_NAME = "t";
   private static final String ITERATION_OPTION_NAME = "i";
+  private static final String DURATION_OPTION_NAME = "d";
   private static final String RANDOM_READ_OPTIONS_NAME = "r";
   private static final String SAME_DATASET_OPTION_NAME = "s";
   private static final String FILE_SIZE_OPTION_NAME = "fs";
@@ -63,6 +64,12 @@ public final class ReadMain {
       .longOpt("iteration")
       .desc("Number of iterations to execute the read testing")
       .build();
+  private static final Option DURATION_OPTION = Option.builder(DURATION_OPTION_NAME)
+      .required(false)
+      .hasArgs()
+      .longOpt("duration")
+      .desc("Duration in minutes, the longer one of iteration or duration wins")
+      .build();
   private static final Option RANDOM_READ_OPTION = Option.builder(RANDOM_READ_OPTIONS_NAME)
       .required(false)
       .longOpt("random-read")
@@ -89,6 +96,7 @@ public final class ReadMain {
       .addOption(FUSE_FOLDER_OPTION)
       .addOption(THREAD_NUMBER_OPTION)
       .addOption(ITERATION_OPTION)
+      .addOption(DURATION_OPTION)
       .addOption(RANDOM_READ_OPTION)
       .addOption(SAME_DATASET_OPTION)
       .addOption(FILE_SIZE_OPTION)
@@ -100,28 +108,29 @@ public final class ReadMain {
     String fuseFolder = cli.getOptionValue(FUSE_FOLDER_OPTION_NAME);
     int threadNum = Integer.parseInt(cli.getOptionValue(THREAD_NUMBER_OPTION_NAME));
     int iteration = Integer.parseInt(cli.getOptionValue(ITERATION_OPTION_NAME));
+    int duration = Integer.parseInt(cli.getOptionValue(DURATION_OPTION_NAME));
     boolean random = cli.hasOption(RANDOM_READ_OPTIONS_NAME) && Boolean.parseBoolean(cli.getOptionValue(RANDOM_READ_OPTIONS_NAME));
     boolean sameDataset = cli.hasOption(SAME_DATASET_OPTION_NAME) && Boolean.parseBoolean(cli.getOptionValue(SAME_DATASET_OPTION_NAME));
     int fileSize = cli.hasOption(FILE_SIZE_OPTION_NAME) ? Integer.parseInt(cli.getOptionValue(FILE_SIZE_OPTION_NAME)) : 0;
 
     if (threadNum == 1) {
-      runSingleThreadFullTest(localFolder, fuseFolder, random, iteration);
+      runSingleThreadFullTest(localFolder, fuseFolder, random, iteration, duration);
       return;
     }
     if (fileSize > 0) {
-      runMultiThreadSameFileTest(localFolder, fuseFolder, fileSize, random, threadNum, iteration);
+      runMultiThreadSameFileTest(localFolder, fuseFolder, fileSize, random, threadNum, iteration, duration);
       return;
     }
     if (sameDataset) {
-      runMultiThreadSameFileSetTest(localFolder, fuseFolder, random, threadNum, iteration);
+      runMultiThreadSameFileSetTest(localFolder, fuseFolder, random, threadNum, iteration, duration);
     } else {
-      runMultiThreadIsolatedFileTest(localFolder, fuseFolder, random, threadNum, iteration);
+      runMultiThreadIsolatedFileTest(localFolder, fuseFolder, random, threadNum, iteration, duration);
     }
     
     System.out.println("Test finished");
   }
   
-  public static void runSingleThreadFullTest(String localFolder, String fuseFolder, boolean random, int iteration) throws IOException {
+  public static void runSingleThreadFullTest(String localFolder, String fuseFolder, boolean random, int iteration, int duration) throws IOException {
     for (long fileSize : FILE_SIZES) {
       Path[] paths = prepareDataset(localFolder, fuseFolder, fileSize, "FuseTest");
       Path localPath = paths[0];
@@ -132,7 +141,7 @@ public final class ReadMain {
             break;
           }
           if (random) {
-            RandomReadTest.test(localPath.toString(), fusePath.toString(), fileSize, bufferSize, iteration);
+            RandomReadTest.testSingleBuffer(localPath.toString(), fusePath.toString(), fileSize, bufferSize, iteration);
           } else {
             SequentialReadTest.testSingleBuffer(localPath.toString(), fusePath.toString(), fileSize, bufferSize, iteration);
           }
@@ -144,30 +153,27 @@ public final class ReadMain {
     }
   }
 
-  public static void runMultiThreadSameFileTest(String localFolder, String fuseFolder, long fileSize, boolean random,  int threadNum, int iteration) throws IOException, InterruptedException {
+  public static void runMultiThreadSameFileTest(String localFolder, String fuseFolder, long fileSize, boolean random,  int threadNum, int iteration, int duration) throws IOException, InterruptedException {
     Path[] paths = prepareDataset(localFolder, fuseFolder, fileSize, "FuseTest");
     Path localPath = paths[0];
     Path fusePath = paths[1];
     try {
+      long endTime = System.currentTimeMillis() + (long) duration * 60 * 1000;
       final CyclicBarrier barrier = new CyclicBarrier(threadNum);
       List<Thread> threads = new ArrayList<>(threadNum);
-      // If there are exceptions, we will store them here.
-      final List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
-      Thread.UncaughtExceptionHandler exceptionHandler = (th, ex) -> errors.add(ex);
       for (int i = 0; i < threadNum; i++) {
         Thread t = new Thread(() -> {
           try {
             barrier.await();
             if (random) {
-              RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration);
+              RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration, endTime);
             } else {
-              SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration);
+              SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration, endTime);
             }
           } catch (Exception e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
           }
         });
-        t.setUncaughtExceptionHandler(exceptionHandler);
         threads.add(t);
       }
       Collections.shuffle(threads);
@@ -177,16 +183,13 @@ public final class ReadMain {
       for (Thread t : threads) {
         t.join();
       }
-      for (Throwable error : errors) {
-        error.printStackTrace();
-      }
     } finally {
       Files.delete(localPath);
       Files.delete(fusePath); 
     }
   }
   
-  public static void runMultiThreadSameFileSetTest(String localFolder, String fuseFolder, boolean random,  int threadNum, int iteration) throws IOException, InterruptedException {
+  public static void runMultiThreadSameFileSetTest(String localFolder, String fuseFolder, boolean random,  int threadNum, int iteration, int duration) throws IOException, InterruptedException {
     int fileNumber = FILE_SIZES.length;
     Path[] localPaths = new Path[fileNumber];
     Path[] fusePaths = new Path[fileNumber];
@@ -195,11 +198,9 @@ public final class ReadMain {
       localPaths[i] = dataset[0];
       fusePaths[i] = dataset[1];
     }
+    long endTime = System.currentTimeMillis() + (long) duration * 60 * 1000;
     final CyclicBarrier barrier = new CyclicBarrier(threadNum);
     List<Thread> threads = new ArrayList<>(threadNum);
-    // If there are exceptions, we will store them here.
-    final List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
-    Thread.UncaughtExceptionHandler exceptionHandler = (th, ex) -> errors.add(ex);
     for (int i = 0; i < threadNum; i++) {
       final int thread_id = i;
       Thread t = new Thread(() -> {
@@ -209,15 +210,14 @@ public final class ReadMain {
           Path localPath = localPaths[index];
           Path fusePath = fusePaths[index];
           if (random) {
-            RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), FILE_SIZES[index], READ_BUFFER_SIZES, iteration);
+            RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), FILE_SIZES[index], READ_BUFFER_SIZES, iteration, endTime);
           } else {
-            SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), FILE_SIZES[index], READ_BUFFER_SIZES, iteration);
+            SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), FILE_SIZES[index], READ_BUFFER_SIZES, iteration, endTime);
           }
         } catch (Exception e) {
-          throw new RuntimeException(e);
+          e.printStackTrace();
         }
       });
-      t.setUncaughtExceptionHandler(exceptionHandler);
       threads.add(t);
     }
     Collections.shuffle(threads);
@@ -226,9 +226,6 @@ public final class ReadMain {
     }
     for (Thread t : threads) {
       t.join();
-    }
-    for (Throwable error : errors) {
-      error.printStackTrace();
     }
     for (int i = 0; i < fileNumber; i++) {
       Files.delete(localPaths[i]);
@@ -245,13 +242,11 @@ public final class ReadMain {
    * @param threadNum
    * @throws Exception
    */
-  public static void runMultiThreadIsolatedFileTest(String localFolder, String fuseFolder, boolean random,  int threadNum, int iteration)
+  public static void runMultiThreadIsolatedFileTest(String localFolder, String fuseFolder, boolean random,  int threadNum, int iteration, int duration)
       throws Exception {
     final CyclicBarrier barrier = new CyclicBarrier(threadNum);
     List<Thread> threads = new ArrayList<>(threadNum);
-    // If there are exceptions, we will store them here.
-    final List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
-    Thread.UncaughtExceptionHandler exceptionHandler = (th, ex) -> errors.add(ex);
+    long endTime = System.currentTimeMillis() + (long) duration * 60 * 1000;
     for (int i = 0; i < threadNum; i++) {
       final int thread_id = i;
       Thread t = new Thread(() -> {
@@ -263,19 +258,18 @@ public final class ReadMain {
           Path fusePath = paths[1];
           try {
             if (random) {
-              RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration);
+              RandomReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration, endTime);
             } else {
-              SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration);
+              SequentialReadTest.testAllBuffer(localPath.toString(), fusePath.toString(), fileSize, READ_BUFFER_SIZES, iteration, endTime);
             }
           } finally {
             Files.delete(localPath);
             Files.delete(fusePath);
           }
         } catch (Exception e) {
-          throw new RuntimeException(e);
+          e.printStackTrace();
         }
       });
-      t.setUncaughtExceptionHandler(exceptionHandler);
       threads.add(t);
     }
     Collections.shuffle(threads);
@@ -284,9 +278,6 @@ public final class ReadMain {
     }
     for (Thread t : threads) {
       t.join();
-    }
-    for (Throwable error : errors) {
-      error.printStackTrace();
     }
   }
   

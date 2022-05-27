@@ -134,7 +134,7 @@ public final class ReadMain {
     System.exit(0);
   }
 
-  public static void runFullTest(String localFolder, String fuseFolder) throws IOException {
+  public static void runFullTest(String localFolder, String fuseFolder) throws IOException, InterruptedException {
     List<Thread> threads = new ArrayList<>();
     for (long fileSize : FILE_SIZES) {
       for (long bufferSize : READ_BUFFER_SIZES) {

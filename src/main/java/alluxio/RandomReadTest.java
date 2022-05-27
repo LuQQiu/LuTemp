@@ -54,6 +54,5 @@ public class RandomReadTest {
       throw new IOException(String.format("Read to the end with offset %s and file size %s", offset, fileSize));
     }
     ReadMain.validateDataCorrectness(localInStream, buffer, offset, bytesRead);
-    System.out.println("Validated");
   }
 }

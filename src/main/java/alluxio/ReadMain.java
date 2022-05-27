@@ -109,7 +109,7 @@ public final class ReadMain {
     int threadNum = Integer.parseInt(cli.getOptionValue(THREAD_NUMBER_OPTION_NAME));
     int iteration = Integer.parseInt(cli.getOptionValue(ITERATION_OPTION_NAME));
     int duration = Integer.parseInt(cli.getOptionValue(DURATION_OPTION_NAME));
-    boolean random = cli.hasOption(RANDOM_READ_OPTIONS_NAME) && Boolean.parseBoolean(cli.getOptionValue(RANDOM_READ_OPTIONS_NAME));
+    boolean random = cli.hasOption(RANDOM_READ_OPTIONS_NAME);
     boolean sameDataset = cli.hasOption(SAME_DATASET_OPTION_NAME) && Boolean.parseBoolean(cli.getOptionValue(SAME_DATASET_OPTION_NAME));
     int fileSize = cli.hasOption(FILE_SIZE_OPTION_NAME) ? Integer.parseInt(cli.getOptionValue(FILE_SIZE_OPTION_NAME)) : 0;
 

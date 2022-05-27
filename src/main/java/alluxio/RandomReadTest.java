@@ -39,7 +39,7 @@ public class RandomReadTest {
           for (byte[] buffer : buffers) {
             randomRead(localInStream, fuseInStream, buffer, localRandom, fileSize);
           }
-          System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
+          System.out.printf("Finished iteration %s of file size %s%n", i, fileSize);
         }
         firstRound = false;
       }

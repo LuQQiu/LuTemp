@@ -128,6 +128,7 @@ public final class ReadMain {
     }
     
     System.out.println("Test finished");
+    System.exit(0);
   }
   
   public static void runSingleThreadFullTest(String localFolder, String fuseFolder, boolean random, int iteration, int duration) throws IOException {

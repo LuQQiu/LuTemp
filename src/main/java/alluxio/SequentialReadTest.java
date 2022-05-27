@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SequentialReadTest {
+  private static final long threshold = 63 * ReadMain.MB;
+  
   public static void testSingleBuffer(String localPath, String fusePath, long fileSize, long bufferSize, int iteration) throws IOException {
     if (bufferSize > Integer.MAX_VALUE) {
       throw new IOException("Cannot handle buffer size bigger than Integer.MAX_VALUE");
@@ -17,6 +19,7 @@ public class SequentialReadTest {
         sequentialReadSingleFile(localInStream, fusePath, fileSize, new byte[(int) bufferSize]);
       }
     }
+    System.out.printf("Finished test of file size %s%n", fileSize);
   }
 
   public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration, long endTime) throws IOException {
@@ -32,9 +35,11 @@ public class SequentialReadTest {
       while (firstRound || System.currentTimeMillis() < endTime) {
         for (int i = 0; i < iteration; i++) {
           for (byte[] buffer : buffers) {
+            if (fileSize >= threshold) {
+              System.out.printf("starting to sequentially read file of size %s with buffer %s", fileSize, buffer.length);
+            }
             sequentialReadSingleFile(localInStream, fusePath, fileSize, buffer);
           }
-          System.out.printf("Finished iteration %s of file size %s%n", iteration, fileSize);
         }
         firstRound = false;
       }

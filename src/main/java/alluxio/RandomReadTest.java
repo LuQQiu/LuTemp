@@ -19,6 +19,7 @@ public class RandomReadTest {
         randomRead(localInStream, fuseInStream, buffer, localRandom, fileSize);
       }
     }
+    System.out.printf("Finished test of file size %s%n", fileSize);
   }
 
   public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration, long endTime) throws IOException {

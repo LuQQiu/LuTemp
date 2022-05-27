@@ -14,12 +14,13 @@ public class SequentialReadTest {
     if (bufferSize > Integer.MAX_VALUE) {
       throw new IOException("Cannot handle buffer size bigger than Integer.MAX_VALUE");
     }
+    System.out.printf("Starting test of file size %s and buffer size %s%n", fileSize, bufferSize);
     try (RandomAccessFile localInStream = new RandomAccessFile(localPath, "r")) {
       for (int i = 0; i < iteration; i++) {
         sequentialReadSingleFile(localInStream, fusePath, fileSize, new byte[(int) bufferSize]);
       }
     }
-    System.out.printf("Finished test of file size %s%n", fileSize);
+    System.out.printf("Finished test of file size %s and buffer size %s%n", fileSize, bufferSize);
   }
 
   public static void testAllBuffer(String localPath, String fusePath, long fileSize, long[] bufferSizes, int iteration, long endTime) throws IOException {
@@ -36,7 +37,7 @@ public class SequentialReadTest {
         for (int i = 0; i < iteration; i++) {
           for (byte[] buffer : buffers) {
             if (fileSize >= threshold) {
-              System.out.printf("starting to sequentially read file of size %s with buffer %s", fileSize, buffer.length);
+              System.out.printf("starting to sequentially read file of size %s with buffer %s%n", fileSize, buffer.length);
             }
             sequentialReadSingleFile(localInStream, fusePath, fileSize, buffer);
           }

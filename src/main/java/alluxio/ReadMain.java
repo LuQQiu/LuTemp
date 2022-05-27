@@ -25,8 +25,9 @@ public final class ReadMain {
   public static final int BUFFER_LEN = 1024;
   public static final Random RANDOM = new Random();
 
-  public static final long[] FILE_SIZES = {100 * KB, MB, 1034, 63 * MB, 65 * MB, GB, 10 * GB};
-  public static final long[] READ_BUFFER_SIZES = {128, 1000, 1001, MB, 1025, 4 * KB, 32 * KB, 128 * KB, MB, 4 * MB};
+  // public static final long[] FILE_SIZES = {100 * KB, MB, 1034, 63 * MB, 65 * MB, GB, 10 * GB};
+  public static final long[] FILE_SIZES = {63 * MB, 65 * MB, GB, 10 * GB};
+  public static final long[] READ_BUFFER_SIZES = {4 * MB, MB, 128 * KB, 32 * KB, 4 * KB, 1025, MB, 1001, 1000, 128};
 
   private static final CommandLineParser PARSER = new DefaultParser();
   private static final String LOCAL_FOLDER_OPTION_NAME = "l";
@@ -102,6 +103,7 @@ public final class ReadMain {
       .addOption(FILE_SIZE_OPTION)
       .addOption(HELP_OPTION);
 
+  // problem read big file with smaller buffer size is way too slow
   public static void main(String[] args) throws Exception {
     CommandLine cli = PARSER.parse(OPTIONS, args);
     String localFolder = cli.getOptionValue(LOCAL_FOLDER_OPTION_NAME);
@@ -114,7 +116,8 @@ public final class ReadMain {
     int fileSize = cli.hasOption(FILE_SIZE_OPTION_NAME) ? Integer.parseInt(cli.getOptionValue(FILE_SIZE_OPTION_NAME)) : 0;
 
     if (threadNum == 1) {
-      runSingleThreadFullTest(localFolder, fuseFolder, random, iteration, duration);
+      // runSingleThreadFullTest(localFolder, fuseFolder, random, iteration, duration);
+      runFullTest(localFolder, fuseFolder);
       return;
     }
     if (fileSize > 0) {
@@ -129,6 +132,37 @@ public final class ReadMain {
     
     System.out.println("Test finished");
     System.exit(0);
+  }
+
+  public static void runFullTest(String localFolder, String fuseFolder) throws IOException {
+    List<Thread> threads = new ArrayList<>();
+    for (long fileSize : FILE_SIZES) {
+      for (long bufferSize : READ_BUFFER_SIZES) {
+        Thread thread = new Thread(() -> {
+          try {
+            Path[] paths = prepareDataset(localFolder, fuseFolder, fileSize, "FuseTest");
+            Path localPath = paths[0];
+            Path fusePath = paths[1];
+            try {
+              SequentialReadTest.testSingleBuffer(localPath.toString(), fusePath.toString(), fileSize, bufferSize, 1);
+            } finally {
+              Files.delete(localPath);
+              Files.delete(fusePath);
+            }
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+        });
+        threads.add(thread);
+      }
+    }
+    Collections.shuffle(threads);
+    for (Thread t : threads) {
+      t.start();
+    }
+    for (Thread t : threads) {
+      t.join();
+    }
   }
   
   public static void runSingleThreadFullTest(String localFolder, String fuseFolder, boolean random, int iteration, int duration) throws IOException {

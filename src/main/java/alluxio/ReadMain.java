@@ -111,7 +111,7 @@ public final class ReadMain {
     int duration = Integer.parseInt(cli.getOptionValue(DURATION_OPTION_NAME));
     boolean random = cli.hasOption(RANDOM_READ_OPTIONS_NAME);
     boolean sameDataset = cli.hasOption(SAME_DATASET_OPTION_NAME);
-    int fileSize = cli.hasOption(FILE_SIZE_OPTION_NAME) ? Integer.parseInt(cli.getOptionValue(FILE_SIZE_OPTION_NAME)) : 0;
+    long fileSize = cli.hasOption(FILE_SIZE_OPTION_NAME) ? Long.parseLong(cli.getOptionValue(FILE_SIZE_OPTION_NAME)) : 0;
 
     if (threadNum == 1) {
       runSingleThreadFullTest(localFolder, fuseFolder, random, iteration, duration);

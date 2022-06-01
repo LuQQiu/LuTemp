@@ -20,6 +20,7 @@ public class SequentialWriteTest {
   public static final Random RANDOM = new Random();
 
   public static void sequentialWriteSingleFile(String localFolder, String fuseFolder, long fileSize, long bufferSize) throws IOException {
+    System.out.printf("Validate file size %s and buffer size %s%n", fileSize, bufferSize);
     String fileName = getRandomFileName("FuseTest");
     Path localPath = Paths.get(localFolder, fileName);
     Path fusePath = Paths.get(fuseFolder, fileName);

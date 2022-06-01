@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Random;
 
 public class SequentialWriteTest {
-  public static final int BUFFER_LEN = 1024;
+  public static final int BUFFER_LEN = 4 * 1024 * 1024;
   public static final Random RANDOM = new Random();
 
   public static void sequentialWriteSingleFile(String localFolder, String fuseFolder, long fileSize, long bufferSize) throws IOException {
@@ -58,13 +58,31 @@ public class SequentialWriteTest {
       }
     }
 
-    try (BufferedReader bf1 = Files.newBufferedReader(local);
-         BufferedReader bf2 = Files.newBufferedReader(fuse)) {
-      String line;
-      while ((line = bf1.readLine()) != null)
-      {
-        if (!line.equals(bf2.readLine())) {
-          throw new IOException(String.format("File content of %s and %s is different", local, fuse));
+    int bufferSize = (int) Math.min(BUFFER_LEN, size);
+    byte[] localBuffer = new byte[bufferSize];
+    byte[] fuseBuffer = new byte[bufferSize];
+    try (FileInputStream localStream = new FileInputStream(local.toFile());
+    FileInputStream fuseStream = new FileInputStream(fuse.toFile())) {
+      while (true) {
+        int readSize = fuseStream.read(fuseBuffer, 0, bufferSize);
+        if (readSize == -1) {
+          if (localStream.read(localBuffer, 0, bufferSize) == -1) {
+            return;
+          }
+          throw new IOException("fuseStream finish reading while local stream still have data");
+        }
+        int localOffset = 0;
+        while (localOffset < readSize) {
+          int localBytesRead = localStream.read(localBuffer, localOffset, readSize - localOffset);
+          if (localBytesRead == -1) {
+            throw new IOException(String.format("Cannot read %s bytes from local file", readSize));
+          }
+          localOffset += localBytesRead;
+        }
+        for (int i = 0; i < readSize; i++) {
+          if (localBuffer[i] != fuseBuffer[i]) {
+            throw new IOException("Data read from fuse is different from data read from local");
+          }
         }
       }
     }
